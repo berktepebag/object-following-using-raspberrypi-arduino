@@ -8,7 +8,7 @@ The camera follows the object according to the color in the chosen ROI.
 * Arduino
 * Servo motor controlled Raspberry-Pi camera
 
-```
+```python
 for frame in camera.capture_continuous(rawCapture, format='bgr', use_video_port=True):
     #Read current input image
     image = frame.array
@@ -21,7 +21,8 @@ for frame in camera.capture_continuous(rawCapture, format='bgr', use_video_port=
 ### choose_roi function:
 cv2.setMouseCallback is called every time mouse pointer is on the 'image' window. 
 
-```
+hsv_mean array is created to sum all the pixel's HSV values in the selected ROI area. 
+```python
 def choose_roi(event, x, y, flags, param): # mouse callback
         global drag, point1, point2, selection
         selection = False
@@ -30,9 +31,9 @@ def choose_roi(event, x, y, flags, param): # mouse callback
         hsv_mean = np.zeros([1,3])
 ```
 
-hsv_mean array is created to sum all the pixel's HSV values in the ROI. 
+With mouse events, the ROI area is defined to find the color to be followed.
 
-```
+```python
         if event==cv2.EVENT_LBUTTONDOWN:
                 point1=(x,y)
                 drag=True
@@ -53,19 +54,16 @@ hsv_mean array is created to sum all the pixel's HSV values in the ROI.
                 hsv = cv2.cvtColor(img2, cv2.COLOR_BGR2HSV)
                 cv2.imshow('HSV',hsv)
 ```
-
-With mouse events, the region is defined to be used to find the color to be followed.
-
-```
+Global h,s,v,color_selected (bool) is called to be later filled with values from ROI.
+```python
                 global h
                 global s
                 global v
                 global color_selected
 ```
 
-global h,s,v,color_selected (bool) is defined to be later filled with values from ROI.
-
-``` 
+For each pixel in the chosen region HSV values are taken into hsv_current and summed into hsv_mean to be later divided by the ROI area size.
+```python
                 for i in range (point1[0],point2[0]):
                        for j in range (point1[1],point2[1]):
 
@@ -75,15 +73,13 @@ global h,s,v,color_selected (bool) is defined to be later filled with values fro
                                #print("hsv_mean total: ",hsv_mean)
 ```
 
-for each pixel in the chosen region HSV values are taken into hsv_current and summed into hsv_mean to be later divided by the ROI size.
-
+Image size calculated with using points from cv2.setMouseCallback.
 ```
                 image_size = (abs(point1[0]-point2[0])*abs(point1[1]-point2[1]))
 ```
 
-Image size calculated with using points from cv2.setMouseCallback.
-
-```
+h,s,v values are separated to be used later in masking the selected HSV values.
+```python
                 hsv_mean /= image_size
                 #print("hsv_mean: ", hsv_mean)
                 h = hsv_mean[0][0]
@@ -95,9 +91,9 @@ Image size calculated with using points from cv2.setMouseCallback.
                 print("h: {} s: {} v: {}".format(h,s,v))
 ```
 
-h,s,v values are separated to be used later in masking the selected HSV values.
+Each frame captured by the camera, assigned to the image array.
 
-```
+```python
 for frame in camera.capture_continuous(rawCapture, format='bgr', use_video_port=True):
     #Read current input image
     image = frame.array
@@ -107,10 +103,13 @@ for frame in camera.capture_continuous(rawCapture, format='bgr', use_video_port=
     cv2.setMouseCallback('image',choose_roi)
 ```
 
-### Setting the lower & higher HSV values to draw the contours and the centroid
+#### Setting the lower & higher HSV values to draw the contours and the centroid
 
 After getting values from choose_roi function, set the values to relevant masking filters.
 
+Multipliers are chosen after few trials. Setting a low margine between upper and lower boundaries results system not find any object to be tracked. Setting a high margine causes mismatching.
+
+Trackbars are used to indicate received values from the ROI. 
 ```
    if color_selected:
             hue_l= int(h*0.75)
@@ -131,11 +130,9 @@ After getting values from choose_roi function, set the values to relevant maskin
 
 ```
 
-Multipliers are chosen after few trials. Setting a low margine between upper and lower boundaries results system not find any object to be tracked. Setting a high margine causes mismatching.
+H,S,V values used to mask image.
 
-Trackbars are used to indicate received values from the ROI. 
-
-```
+```python
    lower_hsv = np.array([hue_l,sat_l,val_l])
    higher_hsv = np.array([hue_h,sat_h,val_h])
 
@@ -143,9 +140,8 @@ Trackbars are used to indicate received values from the ROI.
    mask = cv2.inRange(hsv, lower_hsv, higher_hsv)
 ```
 
-H,S,V values used to mask image.
-
-```
+If contour_area fed is larger than current contour_area and larger than 100 pixels, set new "best contour" to this contour. 
+```python
 	contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 	
     contour_max = 0
@@ -160,24 +156,23 @@ H,S,V values used to mask image.
                     contour_max = countour_area
 ```
 
-If contour_area fed is larger than current contour_area and larger than 100 pixels, set new "best contour" to this contour. 
-```
+Centroid of the contour can be calculated as above. For more information on contours:
+https://docs.opencv.org/3.1.0/dd/d49/tutorial_py_contour_features.html
+```python
                     cx = int(moments['m10']/moments['m00'])         # cx = M10/M00
                     cy = int(moments['m01']/moments['m00'])
                     best_contour = cnt
 ```
 
-Centroid of the contour can be calculated as above. For more information on contours:
-https://docs.opencv.org/3.1.0/dd/d49/tutorial_py_contour_features.html
-
-```             
+If the best_contour is found, draw contour and centroid of the contour.
+```python             
     if best_contour is not None:
             cv2.drawContours(image,[best_contour],0,(0,255,0),1)
             cv2.circle(image,(cx,cy),5,(0,0,255),-1)
 ```
 
-If the best_contour is found, draw contour and centroid of the contour.
-```
+Error is calculated with the distance from center of the camera to the centroid of the object in x direction. Camera speed is calculated with the formulation below * error.
+```python
             error = cx - camera.resolution.width/2
             
             camera_speed = B * error 
@@ -194,11 +189,23 @@ If the best_contour is found, draw contour and centroid of the contour.
     cv2.imshow('out',image)
 ```
 
-Error is calculated with the distance from center of the camera to the centroid of the object in x direction. Camera speed is calculated with the formulation below * error.
-```
+FOVx -Horizontal field of view-, is camera specific parameters which can be found here. https://www.raspberrypi.org/documentation/hardware/camera/
+```python
 FOVx = 62.2
 B = FOVx / camera.resolution.width
 ```
 
-FOVx -Horizontal field of view-, is camera specific parameters which can be found here. https://www.raspberrypi.org/documentation/hardware/camera/
+
+## Calculating the Error
+
+<img width="800" alt="Error" src="/imgs/error1.png">
+
+e = S(p(t)) - S*
+
+S(p(t)) : current value (cx in our case)
+S* : Desired value (half width of the camera resolution, in our case)
+
+<img width="800" alt="Error Derivation " src="/imgs/error2.png">
+<img width="800" alt="Counting other vehicles" src="/imgs/error3.png">
+
 
