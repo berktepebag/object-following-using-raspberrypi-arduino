@@ -18,6 +18,7 @@ for frame in camera.capture_continuous(rawCapture, format='bgr', use_video_port=
     cv2.setMouseCallback('image',choose_roi)
 ```
 
+### choose_roi function:
 cv2.setMouseCallback is called every time mouse pointer is on the 'image' window. 
 
 ```
@@ -96,10 +97,108 @@ Image size calculated with using points from cv2.setMouseCallback.
 
 h,s,v values are separated to be used later in masking the selected HSV values.
 
- 
+```
+for frame in camera.capture_continuous(rawCapture, format='bgr', use_video_port=True):
+    #Read current input image
+    image = frame.array
 
+    cv2.imshow('image',image)
 
+    cv2.setMouseCallback('image',choose_roi)
+```
 
+### Setting the lower & higher HSV values to draw the contours and the centroid
 
+After getting values from choose_roi function, set the values to relevant masking filters.
 
+```
+   if color_selected:
+            hue_l= int(h*0.75)
+            cv2.setTrackbarPos('Hue_low','image', hue_l)
+            hue_h=int(h*1.25)
+            cv2.setTrackbarPos('Hue_high','image' ,hue_h )
+            sat_l=int(s*0.75)
+            cv2.setTrackbarPos('Saturation_low','image',sat_l )
+            sat_h=int(s*1.50)
+            cv2.setTrackbarPos('Saturation_high','image', sat_h)
+            val_l=int(v*0.75)
+            cv2.setTrackbarPos('Value_low','image', val_l)
+            val_h=int(v*1.50)
+            cv2.setTrackbarPos('Value_high','image', val_h)
+            kernel_size = cv2.getTrackbarPos('kernel_size','image')
+
+            color_selected = False
+
+```
+
+Multipliers are chosen after few trials. Setting a low margine between upper and lower boundaries results system not find any object to be tracked. Setting a high margine causes mismatching.
+
+Trackbars are used to indicate received values from the ROI. 
+
+```
+   lower_hsv = np.array([hue_l,sat_l,val_l])
+   higher_hsv = np.array([hue_h,sat_h,val_h])
+
+   hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+   mask = cv2.inRange(hsv, lower_hsv, higher_hsv)
+```
+
+H,S,V values used to mask image.
+
+```
+	contours, hierarchy = cv2.findContours(mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+	
+    contour_max = 0
+    best_contour = None
+    cx= 0
+    cy= 0
+    
+    for cnt in contours:
+            countour_area = cv2.contourArea(cnt)
+            if countour_area > contour_max and countour_area > 100:
+                    moments = cv2.moments(cnt)
+                    contour_max = countour_area
+```
+
+If contour_area fed is larger than current contour_area and larger than 100 pixels, set new "best contour" to this contour. 
+```
+                    cx = int(moments['m10']/moments['m00'])         # cx = M10/M00
+                    cy = int(moments['m01']/moments['m00'])
+                    best_contour = cnt
+```
+
+Centroid of the contour can be calculated as above. For more information on contours:
+https://docs.opencv.org/3.1.0/dd/d49/tutorial_py_contour_features.html
+
+```             
+    if best_contour is not None:
+            cv2.drawContours(image,[best_contour],0,(0,255,0),1)
+            cv2.circle(image,(cx,cy),5,(0,0,255),-1)
+```
+
+If the best_contour is found, draw contour and centroid of the contour.
+```
+            error = cx - camera.resolution.width/2
+            
+            camera_speed = B * error 
+            
+            angle = angle + 0.5*camera_speed
+            if(angle > 179):
+                    angle = 179
+            elif(angle < 0):
+                    angle = 0
+                    
+            ser.write(chr(int(angle)))
+            #print(angle)
+            
+    cv2.imshow('out',image)
+```
+
+Error is calculated with the distance from center of the camera to the centroid of the object in x direction. Camera speed is calculated with the formulation below * error.
+```
+FOVx = 62.2
+B = FOVx / camera.resolution.width
+```
+
+FOVx -Horizontal field of view-, is camera specific parameters which can be found here. https://www.raspberrypi.org/documentation/hardware/camera/
 
