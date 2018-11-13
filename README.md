@@ -198,14 +198,27 @@ B = FOVx / camera.resolution.width
 
 ## Calculating the Error
 
-<img width="800" alt="Error" src="/imgs/error1.png">
+<img width="100" alt="Error" src="/imgs/error1.png">
 
 e = S(p(t)) - S*
 
 S(p(t)) : current value (cx in our case)
 S* : Desired value (half width of the camera resolution, in our case)
 
-<img width="800" alt="Error Derivation " src="/imgs/error2.png">
-<img width="800" alt="Counting other vehicles" src="/imgs/error3.png">
+<img width="100" alt="Error Derivation " src="/imgs/error2.png">
+
+Change in error can be calculated by deriving error over time. 
+
+<img width="100" alt="Counting other vehicles" src="/imgs/error3.png">
+
+Since camera moves only in x-axis we can neglect Ls. Then camera_speed is related with derivation of error (-lambda*error) only.
+
+<img width="100" alt="Counting other vehicles" src="/imgs/exponential.png">
+As camera moves to make the object in the center of x-axis, e is at it's maximum value - so the speed of the camera is. As error decreases by time, speed will also decrease exponentially.
+
+
+
+  
+
 
 
